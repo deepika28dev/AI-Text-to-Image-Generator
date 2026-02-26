@@ -96,7 +96,7 @@ flask_vision_ai/
 
 ---
 
-## � API Endpoints
+## 🔌 API Endpoints
 
 ### Pages
 -   `GET /`: Renders the main image generator UI.
@@ -111,7 +111,7 @@ flask_vision_ai/
 
 ---
 
-## � Responsive Design
+## 📱 Responsive Design
 
 The UI is built with a **mobile-first approach**:
 -   **Desktop**: Centered card layout (max 640px) with two-column history grid.
