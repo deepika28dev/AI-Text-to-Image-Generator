@@ -2,52 +2,30 @@ import os
 import uuid
 import base64
 import requests
-from datetime import datetime
-from flask import Flask, render_template, request, jsonify, send_from_directory
-from flask_sqlalchemy import SQLAlchemy
+from flask import Flask, render_template, request, jsonify
 from dotenv import load_dotenv
+
+from models import db, Generation, DBConfig, init_db
 
 load_dotenv()
 
 app = Flask(__name__)
 
-# ── Database Configuration ──────────────────────────────────────────
+# ── App & Database Configuration ─────────────────────────────────────
+app.config.from_object(DBConfig)
 basedir = os.path.abspath(os.path.dirname(__file__))
-app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///" + os.path.join(basedir, "generations.db")
-app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
-
-db = SQLAlchemy(app)
 
 # ── Generated images directory ──────────────────────────────────────
 GENERATED_DIR = os.path.join(basedir, "static", "generated")
 os.makedirs(GENERATED_DIR, exist_ok=True)
 
+# Initialize database and create tables
+init_db(app)
+
 # ── Hugging Face Configuration ──────────────────────────────────────
 HF_API_TOKEN = os.getenv("HF_API_TOKEN", "")
 HF_MODEL = "stabilityai/stable-diffusion-xl-base-1.0"
 HF_API_URL = f"https://router.huggingface.co/hf-inference/models/{HF_MODEL}"
-
-
-# ── Database Model ──────────────────────────────────────────────────
-class Generation(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    prompt = db.Column(db.Text, nullable=False)
-    filename = db.Column(db.String(255), nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-
-    def to_dict(self):
-        return {
-            "id": self.id,
-            "prompt": self.prompt,
-            "filename": self.filename,
-            "image_url": f"/static/generated/{self.filename}",
-            "created_at": self.created_at.strftime("%d %b %Y, %I:%M %p"),
-        }
-
-
-# Create tables on startup
-with app.app_context():
-    db.create_all()
 
 
 # ── Routes ──────────────────────────────────────────────────────────
@@ -127,38 +105,57 @@ def generate():
 @app.route("/history")
 def history():
     """Return all past generations, newest first."""
-    generations = Generation.query.order_by(Generation.created_at.desc()).all()
-    return jsonify([g.to_dict() for g in generations])
+    try:
+        generations = Generation.query.order_by(Generation.created_at.desc()).all()
+        return jsonify([g.to_dict() for g in generations]), 200
+    except Exception as e:
+        # Log or handle internally as needed; return a safe response
+        return jsonify({"success": False, "error": "Failed to load history."}), 500
 
 
 @app.route("/history/<int:gen_id>", methods=["DELETE"])
 def delete_generation(gen_id):
     """Delete a generation record and its image file."""
-    gen = Generation.query.get(gen_id)
-    if not gen:
-        return jsonify({"success": False, "error": "Not found."}), 404
+    try:
+        gen = Generation.query.get(gen_id)
+        if not gen:
+            return jsonify({"success": False, "error": "Not found."}), 404
 
-    # Delete image file
-    filepath = os.path.join(GENERATED_DIR, gen.filename)
-    if os.path.exists(filepath):
-        os.remove(filepath)
+        # Delete image file
+        filepath = os.path.join(GENERATED_DIR, gen.filename)
+        if os.path.exists(filepath):
+            os.remove(filepath)
 
-    db.session.delete(gen)
-    db.session.commit()
-    return jsonify({"success": True})
+        db.session.delete(gen)
+        db.session.commit()
+        return jsonify({"success": True}), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"success": False, "error": "Failed to delete generation."}), 500
 
 
 @app.route("/history/clear", methods=["DELETE"])
 def clear_history():
     """Delete all generations and their image files."""
-    generations = Generation.query.all()
-    for gen in generations:
-        filepath = os.path.join(GENERATED_DIR, gen.filename)
-        if os.path.exists(filepath):
-            os.remove(filepath)
-    Generation.query.delete()
-    db.session.commit()
-    return jsonify({"success": True})
+    try:
+        # Delete all image files in the generated directory
+        if os.path.exists(GENERATED_DIR):
+            for filename in os.listdir(GENERATED_DIR):
+                file_path = os.path.join(GENERATED_DIR, filename)
+                if os.path.isfile(file_path):
+                    try:
+                        os.remove(file_path)
+                    except OSError:
+                        # Ignore individual file delete errors to allow DB cleanup
+                        pass
+
+        # Delete all database records
+        Generation.query.delete()
+        db.session.commit()
+        return jsonify({"success": True}), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"success": False, "error": "Failed to clear history."}), 500
 
 
 if __name__ == "__main__":

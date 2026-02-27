@@ -100,7 +100,13 @@ async function loadHistory() {
     try {
         const res = await fetch('/history');
         const data = await res.json();
-        renderHistory(data);
+
+        if (Array.isArray(data)) {
+            renderHistory(data);
+        } else {
+            console.error('History API did not return a list:', data);
+            renderHistory([]);
+        }
     } catch (err) {
         console.error('Failed to load history:', err);
     }
@@ -183,14 +189,23 @@ function closeModal() {
 
 // ── Modal: Confirm Delete ────────────────────────────────────────────
 modalConfirm.addEventListener('click', async () => {
+    const actionType = pendingDeleteType;
+    const id = pendingDeleteId;
     closeModal();
 
     try {
-        if (pendingDeleteType === 'single' && pendingDeleteId) {
-            await fetch(`/history/${pendingDeleteId}`, { method: 'DELETE' });
-        } else if (pendingDeleteType === 'all') {
-            await fetch('/history/clear', { method: 'DELETE' });
+        let res;
+        if (actionType === 'single' && id) {
+            res = await fetch(`/history/${id}`, { method: 'DELETE' });
+        } else if (actionType === 'all') {
+            res = await fetch('/history/clear', { method: 'DELETE' });
         }
+
+        if (!res || !res.ok) {
+            showError('Failed to delete. Please try again.');
+            return;
+        }
+
         loadHistory();
     } catch (err) {
         showError('Failed to delete. Please try again.');
