@@ -79,19 +79,20 @@ Access the app at: `http://127.0.0.1:5000`
 
 ```
 flask_vision_ai/
-├── app.py                  # Flask app — routes, DB model, Hugging Face API logic
-├── requirements.txt        # Python dependencies
-├── .env                    # Environment variables (HF API token)
-├── .gitignore              # Git ignore rules
-├── generations.db          # SQLite database (auto-created on first run)
+├── app.py           # Flask app — routes, Hugging Face logic, API endpoints
+├── models.py        # Database config, SQLAlchemy init, Generation model
+├── requirements.txt # Python dependencies
+├── .env             # Environment variables (HF API token)
+├── .gitignore       # Git ignore rules
+├── generations.db   # SQLite database (auto-created on first run)
 ├── static/
 │   ├── css/
-│   │   └── style.css       # Full UI styles — glassmorphism, animations, responsive
+│   │   └── style.css  # Full UI styles — glassmorphism, animations, responsive
 │   ├── js/
-│   │   └── script.js       # Frontend logic — generate, history, modals, helpers
-│   └── generated/          # AI-generated images stored here
+│   │   └── script.js  # Frontend logic — generate, history, modals, helpers
+│   └── generated/     # AI-generated images stored here
 └── templates/
-    └── index.html          # Main Jinja2 HTML template
+    └── index.html     # Main Jinja2 HTML template
 ```
 
 ---
